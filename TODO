@@ -1,0 +1,6 @@
+1. wap push dessecting if of this type
+1. make it a TS 23.040 spec compliant
+2. modify address num according num type
+3. print time in current locale
+4. decompress user data if in compressed format
+

@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# SMS PDU analyzer of Android radio log.
+# Copyright (C) <2012>  Crs Chin<crs.chin@gmail.com>
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA.
+#
+
+. colortbl.sh
+
+SMSPY=smspy-1.5
+RENDER=renderit
+
+if ! type -p $SMSPY > /dev/null;then
+    F_RED "$SMSPY not found!"
+    exit -1;
+fi
+
+if ! type -p $RENDER > /dev/null;then
+    RENDER=""
+fi
+
+if [ -t 1 -a -n "$RENDER" ];then
+    ${SMSPY} "$@" | $RENDER -c smspy.clr
+else
+    ${SMSPY} "$@"
+fi
+
