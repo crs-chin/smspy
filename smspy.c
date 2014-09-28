@@ -1739,7 +1739,7 @@ static char *decode_unicode(unsigned char *pdu, int len, int bitoffset)
     unsigned int i, j, c, charoffset, shift;
     char *txt = NULL;
 
-    p = ucs16 = (unsigned short *)malloc(len * sizeof(unsigned char));
+    p = ucs16 = (unsigned short *)malloc(len * sizeof(unsigned short));
     if(p)  {
         for(i = 0, j = len, charoffset = bitoffset / 8, shift = bitoffset % 8;
             j;
