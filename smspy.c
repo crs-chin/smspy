@@ -32,7 +32,9 @@
 #include <malloc.h>
 #include <assert.h>
 #include <getopt.h>
-#include <iconv.h>
+#ifdef HAS_ICONV
+ #include <iconv.h>
+#endif
 
 #ifndef SMSPY_VERSION
 #define SMSPY_VERSION "1.5"
@@ -1674,6 +1676,7 @@ static inline void hex_dump(char *val, int len, int cfg)
     return __hex_dump(1, val, len, cfg);
 }
 
+#ifdef HAS_ICONV
 static char *utf8(char *text, int len, const char *coding)
 {
     char *inbuf, *outbuf, *str;
@@ -1719,7 +1722,445 @@ static char *utf8(char *text, int len, const char *coding)
     str[sz - out] = '\0';
     return str;
 }
+#else
 
+#define UTF_CODING_INVALID  (-1)
+#define UTF_CODING_UTF8     0
+#define UTF_CODING_UTF16BE  1
+#define UTF_CODING_UTF16LE  2
+#define UTF_CODING_UTF32    3
+
+#if __BYTE_ORDER == __BIG_ENDIAN
+ #define UTF_CODING_UTF16    UTF_CODING_UTF16BE
+#else
+ #define UTF_CODING_UTF16    UTF_CODING_UTF16LE
+#endif
+
+#define UTF_ERR_OK          0
+#define UTF_ERR_BAD_ARG     (-1)
+#define UTF_ERR_INCOMPLETE  (-2)
+#define UTF_ERR_BAD_CODE    (-3)
+#define UTF_ERR_SIZE        (-4)
+#define UTF_ERR_NO_SUPPORT  (-5)
+
+typedef struct _utf_coding utf_coding;
+typedef int (*utf_encode)(void **buf, size_t *size, unsigned int code_point);
+typedef int (*utf_decode)(void **buf, size_t *size, unsigned int *code_point);
+
+struct _utf_coding{
+    int coding;
+    char *name;
+    utf_encode encode;
+    utf_decode decode;
+};
+
+static int utf_encode_8(void **buf, size_t *size, unsigned int cp);
+static int utf_encode_16be(void **buf, size_t *size, unsigned int cp);
+static int utf_encode_16le(void **buf, size_t *size, unsigned int cp);
+
+static int utf_decode_8(void **buf, size_t *size, unsigned int *cp);
+static int utf_decode_16be(void **buf, size_t *size, unsigned int *cp);
+static int utf_decode_16le(void **buf, size_t *size, unsigned int *cp);
+
+static const utf_coding utf_coding_table[] = {
+    {UTF_CODING_UTF8, "UTF8", utf_encode_8, utf_decode_8,},
+    {UTF_CODING_UTF16BE, "UTF16BE", utf_encode_16be, utf_decode_16be,},
+    {UTF_CODING_UTF16LE, "UTF16LE", utf_encode_16le, utf_decode_16le,},
+};
+
+static int utf_encode_8(void **buf, size_t *size, unsigned int cp)
+{
+    unsigned char *p = *buf;
+    size_t sz = 0;
+    int err = UTF_ERR_OK;
+
+    if(cp > 0x10FFFF)          /* currently UCS stops at 0x10FFFF */
+        return UTF_ERR_BAD_CODE;
+
+    if(cp >= 0xD800 && cp <= 0xDFFF) /* fail if fall in UTF16 surrogates */
+        return UTF_ERR_BAD_CODE;
+
+    while(*size > 0) {
+        if(cp <= 0x7F) {
+            *p = cp;
+            sz = 1;
+            break;
+        }
+
+        if(cp <= 0x7FF) {
+            if(*size < 2) {
+                err = UTF_ERR_SIZE;
+                break;
+            }
+
+            *p++ = ((cp >> 6) & 0x1F) | 0xC0;
+            *p = (cp & 0x3F) | 0x80;
+            sz = 2;
+            break;
+        } else if(cp <= 0xFFFF) {
+            if(*size < 3) {
+                err = UTF_ERR_SIZE;
+                break;
+            }
+
+            *p++ = ((cp >> 12) & 0x0F) | 0xE0;
+            *p++ = ((cp >> 6) & 0x3F) | 0x80;
+            *p = (cp & 0x3F) | 0x80;
+            sz = 3;
+            break;
+        } else if(cp <= 0x1FFFFF) {
+            if(*size < 4) {
+                err = UTF_ERR_SIZE;
+                break;
+            }
+
+            *p++ = ((cp >> 18) & 0x07) | 0xF0;
+            *p++ = ((cp >> 12) & 0x3F) | 0x80;
+            *p++ = ((cp >> 6) & 0x3F) | 0x80;
+            *p = (cp & 0x3F) | 0x80;
+            sz = 4;
+            break;
+        }
+
+        err = UTF_ERR_BAD_CODE;
+        break;
+    }
+
+    *buf = (char *)*buf + sz;
+    *size -= sz;
+    return err;
+}
+
+static void __write_be(void *buf, unsigned short val)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    *(unsigned short *)buf = val;
+#else
+    unsigned char *a = (unsigned char *)buf;
+
+    *a = val >> 8;
+    *(a + 1) = val & 0x0F;
+#endif
+}
+
+static void __write_le(void *buf, unsigned short val)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    unsigned char *a = buf;
+
+    *a = val & 0x0F;
+    *(a + 1) = val >> 8;
+#else
+    *(unsigned short *)buf = val;
+#endif
+}
+
+static int utf_encode_16(void (*write_short)(void *, unsigned short),
+                         void **buf, size_t *size, unsigned int cp)
+{
+    unsigned short *p = (unsigned short *)*buf;
+    size_t sz = 0;
+    int err = UTF_ERR_OK;
+
+    if(cp >= 0xD800 && cp <= 0xDFFF) /* fail if fall in UTF16 surrogates */
+        return UTF_ERR_BAD_CODE;
+
+    do{
+        if(cp < 0x010000) {
+            if(*size < 2) {
+                err = UTF_ERR_SIZE;
+                break;
+            }
+
+            write_short(p, cp);
+            sz = 2;
+            break;
+        }
+
+        if(cp > 0x10FFFF) {          /* currently UCS stops at 0x10FFFF */
+            err = UTF_ERR_BAD_CODE;
+            break;
+        }
+
+        if(*size < 4) {
+            err = UTF_ERR_SIZE;
+            break;
+        }
+
+        cp -= 0x010000;
+        write_short(p, cp >> 10);
+        write_short(p + 1, cp & 0x3FF);
+        sz = 4;
+        break;
+    }while (0);
+
+    *buf = (char *)*buf + sz;
+    *size -= sz;
+    return err;
+}
+
+static int utf_encode_16be(void **buf, size_t *size, unsigned int cp)
+{
+    return utf_encode_16(__write_be, buf, size, cp);
+}
+
+static int utf_encode_16le(void **buf, size_t *size, unsigned int cp)
+{
+    return utf_encode_16(__write_le, buf, size, cp);
+}
+
+static int utf_decode_8(void **buf, size_t *size, unsigned int *cp)
+{
+    unsigned char *p = *buf;
+    size_t sz = 0;
+    int err = UTF_ERR_OK;
+
+    while(*size > 0) {
+        if(! (*p >> 7)) {       /* ascii code */
+            *cp = *p;
+            sz = 1;
+            break;
+        }
+
+#define __UTF8_ACCUM(_p)                                    \
+        if((*++(_p) >> 6) != 0x02) {  /* 10XXXXXX format */ \
+            err = UTF_ERR_BAD_CODE;                         \
+            break;                                          \
+        }                                                   \
+        *cp = (*cp << 6) | (*(_p) & 0x3F);
+
+        if((*p >> 5) == 0x06) { /* 110XXXXX, 2 byte case */
+            if(*size < 2) {
+                err = UTF_ERR_INCOMPLETE;
+                break;
+            }
+
+            *cp = *p & 0x1F;
+
+            __UTF8_ACCUM(p);
+
+            sz = 2;
+            break;
+        } else if((*p >> 4) == 0x0E) { /* 1110XXXX, 3 byte case */
+            if(*size < 3) {
+                err = UTF_ERR_INCOMPLETE;
+                break;
+            }
+
+            *cp = *p & 0x0F;
+
+            __UTF8_ACCUM(p);
+            __UTF8_ACCUM(p);
+
+            sz = 3;
+            break;
+        } else if((*p >> 3) == 0xF0) { /* 11110XXX, 4 byte case */
+            if(*size < 4) {
+                err = UTF_ERR_INCOMPLETE;
+                break;
+            }
+
+            *cp = *p & 0x07;
+
+            __UTF8_ACCUM(p);
+            __UTF8_ACCUM(p);
+            __UTF8_ACCUM(p);
+
+            sz = 4;
+            break;
+
+        }
+
+        err = UTF_ERR_BAD_CODE;
+        break;
+    }
+
+    /* skip surrogates reserved for UTF16, and check UCS tops */
+    if(err == UTF_ERR_OK &&
+       ((*cp >= 0xD800 && *cp <= 0xDFFF) || *cp > 0x10FFFF)) {
+        err = UTF_ERR_BAD_CODE;
+    } else {
+        *buf = (char *)*buf + sz;
+        *size -= sz;
+    }
+    return err;
+}
+
+static unsigned short __read_be(void *buf)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    return *(unsigned short *)buf;
+#else
+    unsigned char *a = buf;
+
+    return (*a << 8 | *(a + 1));
+#endif
+}
+
+static unsigned short __read_le(void *buf)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    unsigned char *a = buf;
+
+    return (*a | *(a + 1) << 8);
+#else
+    return *(unsigned short *)buf;
+#endif
+}
+
+static int utf_decode_16(unsigned short (*read_short)(void *),
+                         void **buf, size_t *size, unsigned int *cp)
+{
+    unsigned short _cp, surr_high, surr_low;
+    size_t sz = 0;
+    int err = UTF_ERR_OK;
+
+    if(*size < 2)
+        return UTF_ERR_BAD_CODE;
+
+    do{
+        _cp = read_short(*buf);
+        if(_cp < 0xD800 || _cp > 0xDFFF) { /* BMP plane */
+            *cp = _cp;
+            sz = 2;
+            break;
+        }
+
+        /* UTF16/UCS16 extensions */
+        if(_cp > 0xDBFF) {       /* high surrogate expected */
+            err = UTF_ERR_BAD_CODE;
+            break;
+        }
+        *cp = (_cp - 0xD800) << 10;
+
+        if(_cp < 0xDC00) {       /* low surrogate expected */
+            err = UTF_ERR_BAD_CODE;
+            break;
+        }
+        *cp |= (_cp - 0xDC00);
+
+        *cp += 0x010000;
+
+        sz = 4;
+        break;
+    }while(0);
+
+    *buf = (char *)*buf + sz;
+    *size -= sz;
+    return err;
+}
+
+static int utf_decode_16be(void **buf, size_t *size, unsigned int *cp)
+{
+    return utf_decode_16(__read_be, buf, size, cp);
+}
+
+static int utf_decode_16le(void **buf, size_t *size, unsigned int *cp)
+{
+    return utf_decode_16(__read_le, buf, size, cp);
+}
+
+static int utf_do_convert(const utf_coding *from, void **in, size_t *in_sz,
+                          const utf_coding *to, void **out, size_t *out_sz)
+{
+    unsigned int code_point;
+    int err;
+
+    if(! in || ! in_sz || ! out || ! out_sz)
+        return UTF_ERR_BAD_ARG;
+
+    while(*in_sz > 0) {
+        if((err = from->decode(in, in_sz, &code_point)))
+            break;
+        if((err = to->encode(out, out_sz, code_point)))
+            break;
+    }
+
+    return err;
+}
+
+static const utf_coding *utf_coding_get(int coding, const char *name)
+{
+    unsigned int i;
+
+    if(coding != UTF_CODING_INVALID) {
+        for(i = 0; i < ARRAYSIZE(utf_coding_table); i++) {
+            if(coding == utf_coding_table[i].coding) {
+                return &utf_coding_table[i];
+            }
+        }
+    }
+
+    if(name && name[0]) {
+        for(i = 0; i < ARRAYSIZE(utf_coding_table); i++) {
+            if(! strcasecmp(name, utf_coding_table[i].name)) {
+                return &utf_coding_table[i];
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static int utf_convert(int from, void **in, size_t *in_sz,
+                       int to, void **out, size_t *out_sz)
+{
+    const utf_coding *fcoding = utf_coding_get(from, NULL);
+    const utf_coding *tcoding = utf_coding_get(to, NULL);
+
+    if(! fcoding || ! tcoding)
+        return UTF_ERR_NO_SUPPORT;
+
+    return utf_do_convert(fcoding, in, in_sz, tcoding, out, out_sz);
+}
+
+static int utf_convert_name(const char *from, void **in, size_t *in_sz,
+                            const char *to, void **out, size_t *out_sz)
+{
+    const utf_coding *fcoding = utf_coding_get(UTF_CODING_INVALID, from);
+    const utf_coding *tcoding = utf_coding_get(UTF_CODING_INVALID, to);
+
+    if(! fcoding || ! tcoding)
+        return UTF_ERR_NO_SUPPORT;
+
+    return utf_do_convert(fcoding, in, in_sz, tcoding, out, out_sz);
+}
+
+static char *utf8(char *text, int len, const char *coding)
+{
+    char *inbuf, *outbuf, *str;
+    size_t in, sz, out, res;
+
+    if(len < 0)
+        in = strlen(text);
+    else
+        in = (size_t)len;
+    sz = out = len = in;
+
+    str = (char *)malloc(sz + 1);
+    if(! str)
+        return NULL;
+
+    for(inbuf = text, outbuf = str;;)  {
+        res = utf_convert_name(coding, (void **)&inbuf, &in, "UTF8", (void **)&outbuf, &out);
+        if(res == UTF_ERR_SIZE)  {
+            out += len;
+            sz += len;
+            str = (char *)realloc(str, sz + 1);
+            if(! str)  {
+                printf("OOM converting encoding!\n");
+                break;
+            }
+            outbuf = str + sz - out;
+            continue;
+        }
+        break;
+    }
+
+    str[sz - out] = '\0';
+    return str;
+}
+#endif  /* ! HAS_ICONV */
 
 static char *decode_ucs16be(unsigned char *txt, int len)
 {
