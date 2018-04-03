@@ -1968,8 +1968,8 @@ static int utf_decode_8(void **buf, size_t *size, unsigned int *cp)
 
             sz = 4;
             break;
-
         }
+#undef __UTF8_ACCUM
 
         err = UTF_ERR_BAD_CODE;
         break;
