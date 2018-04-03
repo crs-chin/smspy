@@ -26,6 +26,7 @@
 /* TODO: 3GPP2 C.S0015-A CDMA SMS not fully supported */
 
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -37,7 +38,7 @@
 #endif
 
 #ifndef SMSPY_VERSION
-#define SMSPY_VERSION "1.5"
+#define SMSPY_VERSION "1.6"
 #endif
 
 #define ARRAYSIZE(a)  (sizeof(a)/sizeof(a[0]))
@@ -2276,9 +2277,9 @@ static char *decode_ip_addr(unsigned char *pdu, int bitoffset)
         v = (v << shift) | ((pdu[charoffset] >> (8 - shift)) & ((1 << shift) - 1));
 
 #if __BYTE_ORDER == __BIG_ENDIAN
-    asprintf(&buf, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+    asprintf((char **)&buf, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
 #else
-    asprintf(&buf, "%d.%d.%d.%d", p[3], p[2], p[1], p[0]);
+    asprintf((char **)&buf, "%d.%d.%d.%d", p[3], p[2], p[1], p[0]);
 #endif
     return buf;
 }
@@ -4898,7 +4899,7 @@ static int sms_dessect_begin(sms *sms, const char *hex, int cdma, int smsc)
 }
 
 
-static inline __tpdu_parm_fixed(const tpdu_parm *parm)
+static inline int __tpdu_parm_fixed(const tpdu_parm *parm)
 {
     return (parm->offset >= 0
             && parm->len > 0

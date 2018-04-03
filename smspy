@@ -21,7 +21,7 @@
 
 . colortbl.sh
 
-SMSPY=smspy-1.5
+SMSPY=smspy-1.6
 RENDER=renderit
 
 if ! type -p $SMSPY > /dev/null;then
