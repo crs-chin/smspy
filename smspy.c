@@ -24,6 +24,7 @@
 
 /* TODO: make it a TS 23.040 spec compliant */
 /* TODO: 3GPP2 C.S0015-A CDMA SMS not fully supported */
+/* TODO: Finsih up filling of single/lock shfit tables according to TS123.038*/
 
 #include <stdio.h>
 #include <ctype.h>
@@ -221,6 +222,7 @@ struct _sms{
 
     char *scts;
     sms_addr *oa, *da, *ra;
+    int single_shift, locking_shift;
     char *ud;
 
     sms_info *smsc_info;
@@ -517,6 +519,158 @@ static const char *gsm_alphabet_ex[128] = {
     [0x40] = "|",
     [0x60] = "€",
 };
+
+static const char *single_shift_Turkish[] = {
+    [0x14] = "^",
+    [0x28] = "{", [0x29] = "}", [0x2F] = "\\",
+    [0x3C] = "[", [0x3D] = "~", [0x3E] = "]",
+    [0x40] = "|", [0x47] = "•", [0x49] = "•",
+    [0x53] = "•",
+    [0x63] = "ç", [0x67] = "•", [0x69] = "ı",
+    [0x73] = "•"
+};
+
+static const char *locking_shift_Turkish[] = {
+    /* TODO: fill up according to TS123.038 */
+};
+
+static const char *single_shift_Spanish[] = {
+    [0x09] = "ç",
+    [0x14] = "^",
+    [0x28] = "{", [0x29] = "}", [0x2F] = "\\",
+    [0x3C] = "[", [0x3D] = "~", [0x3E] = "]",
+    [0x40] = "|", [0x41] = "Á", [0x49] = "Í", [0x4F] = "Ó",
+    [0x55] = "Ú",
+    [0x61] = "á", [0x69] = "í", [0x6F] = "ó",
+    [0x75] = "ú",
+            
+};
+
+static const char *single_shift_Portuguese[] = {
+
+};
+
+static const char *locking_shift_Portuguese[] = {
+
+};
+
+static const char *single_shift_Bengali[] = {
+
+};
+
+static const char *locking_shift_Bengali[] = {
+
+};
+
+static const char *single_shift_Gujarati[] = {
+
+};
+
+static const char *locking_shift_Gujarati[] = {
+
+};
+
+static const char *single_shift_Hindi[] = {
+
+};
+
+static const char *locking_shift_Hindi[] = {
+
+};
+
+static const char *single_shift_Kannada[] = {
+
+};
+
+static const char *locking_shift_Kannada[] = {
+
+};
+
+static const char *single_shift_Malayalam[] = {
+
+};
+
+static const char *locking_shift_Malayalam[] = {
+
+};
+
+static const char *single_shift_Oriya[] = {
+
+};
+
+static const char *locking_shift_Oriya[] = {
+
+};
+
+static const char *single_shift_Punjabi[] = {
+
+};
+
+static const char *locking_shift_Punjabi[] = {
+
+};
+
+static const char *single_shift_Tamil[] = {
+
+};
+
+static const char *locking_shift_Tamil[] = {
+
+};
+
+static const char *single_shift_Telugu[] = {
+
+};
+
+static const char *locking_shift_Telugu[] = {
+
+};
+
+static const char *single_shift_Urdu[] = {
+
+};
+
+static const char *locking_shift_Urdu[] = {
+
+};
+
+#define SHIFT_TABLE(idx,lang)                                           \
+    __SHIFT_TABLE(idx,lang,single_shift_##lang,locking_shift_##lang)
+
+#define SHIFT_TABLE_GSM7BIT(idx,lang)                       \
+    __SHIFT_TABLE(idx,lang,gsm_alphabet_ex,gsm_alphabet)
+
+#define __SHIFT_TABLE(idx,lang,single,locking)  \
+    [idx] = {#lang, single, locking}
+
+struct language_shift_table{
+    char *name;
+    const char **single;
+    const char **locking;
+};
+
+#define LANG_SHIFT_GSM7BIT  0x00
+
+static const struct language_shift_table language_shift_table[255] = {
+    SHIFT_TABLE_GSM7BIT(0x00, GSM7BIT),
+    __SHIFT_TABLE(0x01, Turkish, single_shift_Turkish, gsm_alphabet),
+    __SHIFT_TABLE(0x02, Spanish, single_shift_Spanish, gsm_alphabet),
+    SHIFT_TABLE_GSM7BIT(0x03, Portuguese),
+    SHIFT_TABLE_GSM7BIT(0x04, Bengali),
+    SHIFT_TABLE_GSM7BIT(0x05, Gujarati),
+    SHIFT_TABLE_GSM7BIT(0x06, Hindi),
+    SHIFT_TABLE_GSM7BIT(0x07, Kannada),
+    SHIFT_TABLE_GSM7BIT(0x08, Malayalam),
+    SHIFT_TABLE_GSM7BIT(0x09, Oriya),
+    SHIFT_TABLE_GSM7BIT(0x0A, Punjabi),
+    SHIFT_TABLE_GSM7BIT(0x0B, Tamil),
+    SHIFT_TABLE_GSM7BIT(0x0C, Telugu),
+    SHIFT_TABLE_GSM7BIT(0x0D, Urdu),
+};
+
+#undef SHIFT_TABLE
+#undef SHIFT_TABLE_GSM7BIT
+#undef __SHIFT_TABLE
 
 
 static const char *mon_tbl[] = {
@@ -2284,11 +2438,21 @@ static char *decode_ip_addr(unsigned char *pdu, int bitoffset)
     return buf;
 }
 
-static char *decode_gsm7bit_packed(unsigned char *pdu, int septets, int padingbits)
+static char *decode_gsm7bit_packed(unsigned char *pdu, int septets, int padingbits,
+                                   int single_shift, int locking_shift)
 {
     char *str, *p;
     int esc = 0, c, bitoffset, charoffset, shift;
     int i, sz = septets;
+    struct language_shift_table transtbl = language_shift_table[LANG_SHIFT_GSM7BIT];
+
+    if(single_shift > 0 && single_shift < ARRAYSIZE(language_shift_table)) {
+        transtbl.single = language_shift_table[single_shift].single;
+    }
+
+    if(locking_shift > 0 && locking_shift < ARRAYSIZE(language_shift_table)) {
+        transtbl.locking = language_shift_table[locking_shift].locking;
+    }
 
     str = (char *)malloc(sz + 1);
     if(! str)  {
@@ -2322,28 +2486,38 @@ static char *decode_gsm7bit_packed(unsigned char *pdu, int septets, int padingbi
 
         if(esc)  {
             /* fake a invalid escaped char as a space */
-            if(! gsm_alphabet_ex[c])
+            if(! transtbl.single[c])
                 str[i++] = ' ';
             else  {
-                strcpy(str + i, gsm_alphabet_ex[c]);
-                i += strlen(gsm_alphabet_ex[c]);
+                strcpy(str + i, transtbl.single[c]);
+                i += strlen(transtbl.single[c]);
             }
             esc = 0;
             continue;
         }
 
-        strcpy(str + i, gsm_alphabet[c]);
-        i += strlen(gsm_alphabet[c]);
+        strcpy(str + i, transtbl.locking[c]);
+        i += strlen(transtbl.locking[c]);
     }
 
     str[i] = '\0';
     return str;    
 }
 
-static char *decode_gsm8bit_unpacked(unsigned char *pdu, int len)
+static char *decode_gsm8bit_unpacked(unsigned char *pdu, int len,
+                                     int single_shift, int locking_shift)
 {
     char *str, *p;
     int esc, c, i, j, sz = len;
+    struct language_shift_table transtbl = language_shift_table[LANG_SHIFT_GSM7BIT];
+
+    if(single_shift > 0 && single_shift < ARRAYSIZE(language_shift_table)) {
+        transtbl.single = language_shift_table[single_shift].single;
+    }
+
+    if(locking_shift > 0 && locking_shift < ARRAYSIZE(language_shift_table)) {
+        transtbl.locking = language_shift_table[locking_shift].locking;
+    }
 
     str = (char *)malloc(sz + 1);
     if(! str)  {
@@ -2371,18 +2545,18 @@ static char *decode_gsm8bit_unpacked(unsigned char *pdu, int len)
 
         if(esc)  {
             /* fake a invalid escaped char as a space */
-            if(! gsm_alphabet_ex[c])
+            if(! transtbl.single[c])
                 str[i++] = ' ';
             else  {
-                strcpy(str + i, gsm_alphabet_ex[c]);
-                i += strlen(gsm_alphabet_ex[c]);
+                strcpy(str + i, transtbl.single[c]);
+                i += strlen(transtbl.single[c]);
             }
             esc = 0;
             continue;
         }
 
-        strcpy(str + i, gsm_alphabet[c]);
-        i += strlen(gsm_alphabet[c]);
+        strcpy(str + i, transtbl.locking[c]);
+        i += strlen(transtbl.locking[c]);
     }
 
     str[i] = '\0';
@@ -2417,7 +2591,7 @@ static char *decode_ucs2(char *pdu, char base, int len)
         for(m = i; m < len && pdu[m] >= 0; m++)
             ;
 
-        tmp = decode_gsm8bit_unpacked(pdu + i, m - i);
+        tmp = decode_gsm8bit_unpacked(pdu + i, m - i, 0, 0);
         if(tmp)  {
             int l = strlen(tmp);
 
@@ -2470,7 +2644,7 @@ static char *decode_adn(unsigned char *pdu, int len)
     if(ucs2)
         return decode_ucs2(pdu + i, base, len - i);
 
-    return decode_gsm8bit_unpacked(pdu, len);
+    return decode_gsm8bit_unpacked(pdu, len, 0 ,0);
 }
 
 static inline int decode_bcd(unsigned char pdu)
@@ -2639,7 +2813,7 @@ static int __des_addr(des_ctx *cfg, const tpdu_parm *desc, unsigned char *pdu, s
 
     npi_avail = (ton == TON_UNKNOWN || ton == TON_INTERNATIONAL || ton == TON_NATIONAL);
     if(ton == TON_ALPHANUMERIC)
-        num = decode_gsm7bit_packed(pdu + 2, _addr_len * 4 / 7, 0);
+        num = decode_gsm7bit_packed(pdu + 2, _addr_len * 4 / 7, 0, 0, 0);
     else
         num = decode_bcd_num(pdu + 2, _addr_len);
 
@@ -3654,12 +3828,16 @@ static int des_ud(sms *sms, des_ctx *cfg, const tpdu_parm *desc, unsigned char *
         DBG_PRINT("CODING_GSM7BIT UD len:%d\n", sms->ud_len);
         txt = decode_gsm7bit_packed(pdu + res,
                                     sms->ud_len - (res * 8 + 6) / 7, /* septets substract potential header */
-                                    (7 - (res * 8) % 7) % 7); /* padding bits to septets boundary */
+                                    (7 - (res * 8) % 7) % 7, /* padding bits to septets boundary */
+                                    sms->single_shift,
+                                    sms->locking_shift);
         res = (sms->ud_len * 7 + 7) / 8;
         break;
     case CODING_GSM8BIT:
         DBG_PRINT("CODING_GSM8BIT UD len:%d\n", sms->ud_len);
-        txt = decode_gsm8bit_unpacked(pdu + res, sms->ud_len - res);
+        txt = decode_gsm8bit_unpacked(pdu + res, sms->ud_len - res,
+                                      sms->single_shift,
+                                      sms->locking_shift);
         res = sms->ud_len;
         break;
     case CODING_UCS2:
@@ -4045,13 +4223,45 @@ static int des_iei_enhanced_voice_mail(sms *sms, des_ctx *cfg, unsigned char *pd
 
 static int des_iei_national_lang_single_shift(sms *sms, des_ctx *cfg, unsigned char *pdu, size_t len)
 {
-    return __des_iei_default(cfg, pdu, len);
+    unsigned int shift;
+
+    if(len != 1)  {
+        DES_IEI_PRINT("\t\t<Invalid IEI of language single shift header>\n");
+        return len;
+    }
+
+    shift = *pdu;
+
+    if(shift >= ARRAYSIZE(language_shift_table)) {
+        DES_IEI_PRINT("\t\t<Unsupported language single shift:%u>\n", shift);
+        return len;
+    }
+
+    sms->single_shift = shift;
+    DES_IEI_PRINT("\t\tLANGUAGE SINGLE SHIFT:%s\n", language_shift_table[shift].name);
+    return len;
 }
 
 
 static int des_iei_national_lang_locking_shift(sms *sms, des_ctx *cfg, unsigned char *pdu, size_t len)
 {
-    return __des_iei_default(cfg, pdu, len);
+    unsigned int shift;
+
+    if(len != 1)  {
+        DES_IEI_PRINT("\t\t<Invalid IEI of language locking shift header>\n");
+        return len;
+    }
+
+    shift = *pdu;
+
+    if(shift >= ARRAYSIZE(language_shift_table)) {
+        DES_IEI_PRINT("\t\t<Unsupported language locking shift:%u>\n", shift);
+        return len;
+    }
+
+    sms->locking_shift = shift;
+    DES_IEI_PRINT("\t\tLANGUAGE LOCKING SHIFT:%s\n", language_shift_table[shift].name);
+    return len;
 }
 
 

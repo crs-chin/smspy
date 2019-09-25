@@ -1,4 +1,4 @@
-SMSPY_VERSION = 1.6
+SMSPY_VERSION = 1.7
 
 default:all
 
