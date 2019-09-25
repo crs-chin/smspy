@@ -524,14 +524,21 @@ static const char *single_shift_Turkish[] = {
     [0x14] = "^",
     [0x28] = "{", [0x29] = "}", [0x2F] = "\\",
     [0x3C] = "[", [0x3D] = "~", [0x3E] = "]",
-    [0x40] = "|", [0x47] = "•", [0x49] = "•",
-    [0x53] = "•",
-    [0x63] = "ç", [0x67] = "•", [0x69] = "ı",
-    [0x73] = "•"
+    [0x40] = "|", [0x47] = "Ğ", [0x49] = "İ",
+    [0x53] = "Ş",
+    [0x63] = "ç", [0x67] = "ğ", [0x69] = "ı",
+    [0x73] = "ş"
 };
 
 static const char *locking_shift_Turkish[] = {
-    /* TODO: fill up according to TS123.038 */
+    "@", "£", "$", "¥", "€", "é", "ù", "ı", "ò", "Ç", "\n", "Ğ", "ğ", "\r", "Å", "å",
+    "Δ", "_", "Φ", "Γ", "Λ", "Ω", "Π", "Ψ", "Σ", "Θ", "Ξ", "\x1B", "Ş", "ş", "ß", "É",
+    " ", "!", "\"", "#", "¤", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/", 
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?", 
+    "İ", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+    "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "Ä", "Ö", "Ñ", "Ü", "§",
+    "ç", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
+    "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "ä", "ö", "ñ", "ü", "à", 
 };
 
 static const char *single_shift_Spanish[] = {
@@ -543,15 +550,28 @@ static const char *single_shift_Spanish[] = {
     [0x55] = "Ú",
     [0x61] = "á", [0x69] = "í", [0x6F] = "ó",
     [0x75] = "ú",
-            
 };
 
 static const char *single_shift_Portuguese[] = {
-
+    [0x05] = "ê", [0x09] = "ç", [0x0B] = "Ô", [0x0C] = "ô", [0x0E] = "Á", [0x0F] = "á", 
+    [0x12] = "Φ", [0x13] = "Γ", [0x14] = "^", [0x15] = "Ω", [0x16] = "Π", [0x17] = "Ψ", [0x18] = "Σ", [0x19] = "Θ", [0x1F] = "Ê", 
+    [0x28] = "{", [0x29] = "}", [0x2F] = "\\",
+    [0x3C] = "[", [0x3D] = "~", [0x3E] = "]", 
+    [0x41] = "|", [0x42] = "À", [0x49] = "Í", [0x4F] = "Ó", 
+    [0x55] = "Ú", [0x5B] = "Ã", [0x5C] = "Õ", 
+    [0x61] = "Â", [0x65] = "€", [0x69] = "í", [0x6F] = "ó", 
+    [0x75] = "ú", [0x7B] = "ã", [0x7C] = "õ", [0x7F] = "â", 
 };
 
 static const char *locking_shift_Portuguese[] = {
-
+ 	"@", "£", "$", "¥", "ê", "é", "ú", "í", "ó", "ç", "\n", "Ô", "ô", "\r", "Á", "á",
+    "Δ", "_", "ª", "Ç", "À", "∞", "^", "\\", "€", "Ó", "|", "\x1B", "Â", "â", "Ê", "É", 
+    " ", "!", "\"", "#", "º", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?",
+    "Í", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+    "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "Ã", "Õ", "Ú", "Ü", "§",
+    "~", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
+    "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "ã", "õ", "`", "ü", "à", 
 };
 
 static const char *single_shift_Bengali[] = {
@@ -653,9 +673,9 @@ struct language_shift_table{
 
 static const struct language_shift_table language_shift_table[255] = {
     SHIFT_TABLE_GSM7BIT(0x00, GSM7BIT),
-    __SHIFT_TABLE(0x01, Turkish, single_shift_Turkish, gsm_alphabet),
+    SHIFT_TABLE(0x01, Turkish),
     __SHIFT_TABLE(0x02, Spanish, single_shift_Spanish, gsm_alphabet),
-    SHIFT_TABLE_GSM7BIT(0x03, Portuguese),
+    SHIFT_TABLE(0x03, Portuguese),
     SHIFT_TABLE_GSM7BIT(0x04, Bengali),
     SHIFT_TABLE_GSM7BIT(0x05, Gujarati),
     SHIFT_TABLE_GSM7BIT(0x06, Hindi),
