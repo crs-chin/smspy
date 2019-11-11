@@ -26,6 +26,8 @@
 /* TODO: 3GPP2 C.S0015-A CDMA SMS not fully supported */
 /* TODO: Finsih up filling of single/lock shfit tables according to TS123.038*/
 
+#include "plat.h"
+
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -39,10 +41,15 @@
 #endif
 
 #ifndef SMSPY_VERSION
-#define SMSPY_VERSION "1.6"
+ #define SMSPY_VERSION "1.8"
 #endif
 
-#define ARRAYSIZE(a)  (sizeof(a)/sizeof(a[0]))
+#define SMSPY_VERSION_BANNER SMSPY_VERSION " (c) crs.chin@gmail.com"
+
+
+#ifndef ARRAYSIZE
+ #define ARRAYSIZE(a)  (sizeof(a)/sizeof(a[0]))
+#endif
 #define RETURN_VAL_IF(val,exp)  do{if(exp) return val;}while(0)
 
 #define BUILD_FAIL_IF(exp) ((void)sizeof(char[1 - 2 * (!!(exp))]))
@@ -58,7 +65,7 @@
 #define __PRINT(cfg,fmt,args...)                \
     do{                                         \
         if((cfg)->out)                          \
-            fprintf((cfg)->out, fmt, ##args);   \
+            xfprintf((cfg)->out, fmt, ##args);  \
     }while(0)
 
 #define PRINT(fmt,args...)                      \
@@ -67,7 +74,7 @@
 #define __DES_PRINT(desc,cfg,fmt,args...)           \
     do{                                             \
         if((cfg)->out && (cfg)->tp_cfg[desc->id])   \
-            fprintf((cfg)->out, fmt, ##args);       \
+            xfprintf((cfg)->out, fmt, ##args);      \
     }while(0)
 
 #define DES_PRINT(fmt,args...)                  \
@@ -76,7 +83,7 @@
 #define __DES_IEI_PRINT(cfg,fmt,args...)            \
     do{                                             \
         if((cfg)->out && (cfg)->tp_cfg[TP_UD_HD])   \
-            fprintf((cfg)->out, fmt, ##args);       \
+            xfprintf((cfg)->out, fmt, ##args);      \
     }while(0)
 
 #define DES_IEI_PRINT(fmt,args...)              \
@@ -2433,6 +2440,76 @@ static char *decode_asc7bit_unpacked(unsigned char *pdu, int septets, int bitoff
     return buf;
 }
 
+#ifndef _GNU_SOURCE
+#define INIT_STRING_LEN 100
+
+int asprintf(char **strp, const char *fmt, ...)
+{
+    va_list ap;
+    char *buf;
+    size_t len = INIT_STRING_LEN;
+    int res;
+
+    if(! strp || ! fmt || ! (buf = (char *)malloc(len)))
+        return -1;
+
+    va_start(ap, fmt);
+    do {
+        res = vsnprintf(buf, len, fmt, ap);
+
+        if(res >= len) {
+            free(buf);
+
+            if(! (buf = (char *)malloc(len + INIT_STRING_LEN))) {
+                res = -1;
+                break;
+            }
+
+            len += INIT_STRING_LEN;
+            va_end(ap);
+            va_start(ap, fmt);
+            continue;
+        }
+    } while(0);
+    va_end(ap);
+
+    *strp = buf;
+    return res;
+}
+
+int vasprintf(char **strp, const char *fmt, va_list _ap)
+{
+    va_list ap;
+    char *buf;
+    size_t len = INIT_STRING_LEN * 10;
+    int res;
+
+    if(! strp || ! fmt || ! (buf = (char *)malloc(len)))
+        return -1;
+
+    va_copy(ap, _ap);
+    do {
+        res = vsnprintf(buf, len, fmt, ap);
+        if(res >= len) {
+            free(buf);
+
+            if(! (buf = (char *)malloc(len + INIT_STRING_LEN))) {
+                res = -1;
+                break;
+            }
+
+            len += INIT_STRING_LEN;
+            va_end(ap);
+            va_copy(ap, _ap);
+            continue;
+        }
+    } while(0);
+    va_end(ap);
+
+    *strp = buf;
+    return res;
+}
+#endif  /* ! _GNU_SOURCE */
 
 static char *decode_ip_addr(unsigned char *pdu, int bitoffset)
 {
@@ -5073,7 +5150,7 @@ static inline void usage(const char *prg)
 
 static inline void version(void)
 {
-    printf("smspy version %s\n", SMSPY_VERSION);
+    printf("smspy version %s\n", SMSPY_VERSION_BANNER);
     printf("NOTE:\n"
            "1. GSM 03.40 compliant, TS 23.040 not fully supported.\n"
            "2. GSM SMS Command data parsing not supported.\n"
