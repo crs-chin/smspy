@@ -41,6 +41,4 @@ static inline int xfprintf(FILE *stream, const char *format, ...)
 }
 #endif
 
-
-
 #endif  /* ! __PLAT_H */

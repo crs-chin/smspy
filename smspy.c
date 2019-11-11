@@ -1562,6 +1562,11 @@ static const pst_dess_ud pst_dess_ud_tbl[] = {
     /* TODO: decode vCal, vCard here */
 };
 
+static inline int __big_endian()
+{
+    int i = 1;
+    return ! *(char *)&i;
+}
 
 static inline sms_info *find_sms_info(sms *sms, int id)
 {
@@ -1912,12 +1917,6 @@ static char *utf8(char *text, int len, const char *coding)
 #define UTF_CODING_UTF16LE  2
 #define UTF_CODING_UTF32    3
 
-#if __BYTE_ORDER == __BIG_ENDIAN
- #define UTF_CODING_UTF16    UTF_CODING_UTF16BE
-#else
- #define UTF_CODING_UTF16    UTF_CODING_UTF16LE
-#endif
-
 #define UTF_ERR_OK          0
 #define UTF_ERR_BAD_ARG     (-1)
 #define UTF_ERR_INCOMPLETE  (-2)
@@ -2015,26 +2014,26 @@ static int utf_encode_8(void **buf, size_t *size, unsigned int cp)
 
 static void __write_be(void *buf, unsigned short val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-    *(unsigned short *)buf = val;
-#else
-    unsigned char *a = (unsigned char *)buf;
+    if(__big_endian()) {
+        *(unsigned short *)buf = val;
+    } else {
+        unsigned char *a = (unsigned char *)buf;
 
-    *a = val >> 8;
-    *(a + 1) = val & 0x0F;
-#endif
+        *a = val >> 8;
+        *(a + 1) = val & 0x0F;
+    }
 }
 
 static void __write_le(void *buf, unsigned short val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-    unsigned char *a = buf;
+    if(__big_endian()) {
+        unsigned char *a = buf;
 
-    *a = val & 0x0F;
-    *(a + 1) = val >> 8;
-#else
-    *(unsigned short *)buf = val;
-#endif
+        *a = val & 0x0F;
+        *(a + 1) = val >> 8;
+    } else {
+        *(unsigned short *)buf = val;
+    }
 }
 
 static int utf_encode_16(void (*write_short)(void *, unsigned short),
@@ -2170,24 +2169,24 @@ static int utf_decode_8(void **buf, size_t *size, unsigned int *cp)
 
 static unsigned short __read_be(void *buf)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-    return *(unsigned short *)buf;
-#else
-    unsigned char *a = buf;
+    if(__big_endian()) {
+        return *(unsigned short *)buf;
+    } else {
+        unsigned char *a = buf;
 
-    return (*a << 8 | *(a + 1));
-#endif
+        return (*a << 8 | *(a + 1));
+    }
 }
 
 static unsigned short __read_le(void *buf)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-    unsigned char *a = buf;
+    if(__big_endian()) {
+        unsigned char *a = buf;
 
-    return (*a | *(a + 1) << 8);
-#else
-    return *(unsigned short *)buf;
-#endif
+        return (*a | *(a + 1) << 8);
+    } else {
+        return *(unsigned short *)buf;
+    }
 }
 
 static int utf_decode_16(unsigned short (*read_short)(void *),
@@ -2375,11 +2374,11 @@ static char *decode_unicode(unsigned char *pdu, int len, int bitoffset)
 
             p[i++] = c;
         }
-#if __BYTE_ORDER == __BIG_ENDIAN
-        txt = utf8((char *)ucs16, len * 2, "UTF16BE");
-#else
-        txt = utf8((char *)ucs16, len * 2, "UTF16LE");
-#endif
+        if(__big_endian())
+            txt = utf8((char *)ucs16, len * 2, "UTF16BE");
+        else
+            txt = utf8((char *)ucs16, len * 2, "UTF16LE");
+
         free(ucs16);
     }
     return txt;
@@ -2527,11 +2526,11 @@ static char *decode_ip_addr(unsigned char *pdu, int bitoffset)
     else
         v = (v << shift) | ((pdu[charoffset] >> (8 - shift)) & ((1 << shift) - 1));
 
-#if __BYTE_ORDER == __BIG_ENDIAN
-    asprintf((char **)&buf, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
-#else
-    asprintf((char **)&buf, "%d.%d.%d.%d", p[3], p[2], p[1], p[0]);
-#endif
+    if(__big_endian())
+        asprintf((char **)&buf, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+    else
+        asprintf((char **)&buf, "%d.%d.%d.%d", p[3], p[2], p[1], p[0]);
+
     return buf;
 }
 

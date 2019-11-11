@@ -138,7 +138,7 @@ int xfprintf(FILE *stream, const char *format, ...)
         /*     break; */
         /* } */
 
-        res = fwprintf(stream, L"%s",  dest);
+        res = fprintf(stream, "%s",  dest);
     }while(0);
     va_end(ap);
 

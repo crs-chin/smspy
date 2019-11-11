@@ -39,6 +39,7 @@ smspy-win32.o:smspy.c
 mswin32/%.o:mswin32/%.c
 	$(WIN_CC) -c $(CFLAGS) $(WIN_CFLAGS) $< -o $@
 
+smspy-mswin32-$(SMSPY_VERSION).exe:libiconv2.dll
 smspy-mswin32-$(SMSPY_VERSION).exe:$(WIN_OBJ) $(WIN_LIB)
 	$(WIN_CC) $(LDFLAGS) $^ -o $@
 
@@ -50,5 +51,7 @@ install:smspy-$(SMSPY_VERSION)
 	install -D -m 755 smspy-$(SMSPY_VERSION) ~/bin/smspy-$(SMSPY_VERSION)
 	install -D -m 755 smspy  ~/bin/smspy
 	install -D -m 644 smspy.clr ~/.renderit/smspy.clr
+	@echo "FOR WINDOWS:"
+	@echo "copy:" smspy-mswin32-$(SMSPY_VERSION).exe "and libiconv2.dll to where you'd like to execute it!"
 
 .phony:clean install
