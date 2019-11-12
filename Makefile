@@ -20,11 +20,13 @@ WIN_SRC := smspy.c \
 		mswin32/iconv/include/iconv.h
 WIN_OBJ := smspy-win32.o \
 		mswin32/mswin32.o
+WIN_RES := mswin32/res/smspy.res
 WIN_LIB := mswin32/iconv/lib/libiconv.dll.a
 
 LDFLAGS += -s
 
 WIN_CC = i686-w64-mingw32-gcc
+WIN_RC = i686-w64-mingw32-windres
 
 $(LNX_OBJ):$(LNX_SRC)
 	$(CC) -c $(CFLAGS) $(LNX_CFLAGS) $< -o $@
@@ -38,14 +40,17 @@ smspy-win32.o:smspy.c
 	$(WIN_CC) -c $(CFLAGS) $(WIN_CFLAGS) $< -o $@
 mswin32/%.o:mswin32/%.c
 	$(WIN_CC) -c $(CFLAGS) $(WIN_CFLAGS) $< -o $@
+%.rc:%.ico
+%.res:%.rc
+	$(WIN_RC) $< -O coff -o $@
 
 smspy-mswin32-$(SMSPY_VERSION).exe:libiconv2.dll
-smspy-mswin32-$(SMSPY_VERSION).exe:$(WIN_OBJ) $(WIN_LIB)
+smspy-mswin32-$(SMSPY_VERSION).exe:$(WIN_OBJ) $(WIN_LIB) $(WIN_RES)
 	$(WIN_CC) $(LDFLAGS) $^ -o $@
 
 clean:
 	@rm -f smspy-$(SMSPY_VERSION) smspy-mswin32-$(SMSPY_VERSION).exe
-	@rm -f $(LNX_OBJ) $(WIN_OBJ)
+	@rm -f $(LNX_OBJ) $(WIN_OBJ) $(WIN_RES)
 
 install:smspy-$(SMSPY_VERSION)
 	install -D -m 755 smspy-$(SMSPY_VERSION) ~/bin/smspy-$(SMSPY_VERSION)
