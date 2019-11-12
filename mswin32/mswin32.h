@@ -27,6 +27,6 @@
  #define XLOCALE "GB18030"
 #endif
 
-extern int xfprintf(FILE *stream, const char *format, ...);
+extern int xfprintf(FILE *stream, const char *ocoding, const char *format, ...);
 
 #endif  /* ! __MSWIN32_H */

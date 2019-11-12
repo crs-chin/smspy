@@ -65,7 +65,7 @@
 #define __PRINT(cfg,fmt,args...)                \
     do{                                         \
         if((cfg)->out)                          \
-            xfprintf((cfg)->out, fmt, ##args);  \
+            xfprintf((cfg)->out, (cfg)->ocoding, fmt, ##args);  \
     }while(0)
 
 #define PRINT(fmt,args...)                      \
@@ -74,7 +74,7 @@
 #define __DES_PRINT(desc,cfg,fmt,args...)           \
     do{                                             \
         if((cfg)->out && (cfg)->tp_cfg[desc->id])   \
-            xfprintf((cfg)->out, fmt, ##args);      \
+            xfprintf((cfg)->out, (cfg)->ocoding, fmt, ##args);  \
     }while(0)
 
 #define DES_PRINT(fmt,args...)                  \
@@ -83,7 +83,7 @@
 #define __DES_IEI_PRINT(cfg,fmt,args...)            \
     do{                                             \
         if((cfg)->out && (cfg)->tp_cfg[TP_UD_HD])   \
-            xfprintf((cfg)->out, fmt, ##args);      \
+            xfprintf((cfg)->out, (cfg)->ocoding, fmt, ##args);  \
     }while(0)
 
 #define DES_IEI_PRINT(fmt,args...)              \
@@ -436,6 +436,7 @@ enum{
 struct _des_ctx{
     FILE *out;
     int raw;
+    char *ocoding;
     int tp_cfg[NUM_TP];
 };
 
@@ -1771,6 +1772,7 @@ static inline void init_default_ctx(des_ctx *cfg)
 
     cfg->out = stdout;
     cfg->raw = 0;
+    cfg->ocoding = NULL;
     for(; i < NUM_TP; i++)
         cfg->tp_cfg[i] = 1;
 }
@@ -5902,11 +5904,12 @@ int main(int argc, char *argv[])
             {"type", 1, NULL, 't'},
             {"no-smsc", 0, NULL, 'n'},
             {"raw", 0, NULL, 'r'},
+            {"ocoding", required_argument, NULL, 'o'},
             {"version", 0, NULL, 'v'},
             {NULL, 0, NULL, 0}
         };
 
-        c = getopt_long(argc, argv, "cfshp:lt:nrv", opts, &idx);
+        c = getopt_long(argc, argv, "cfshp:lt:nro:v", opts, &idx);
         if(-1 == c)
             break;
 
@@ -5931,7 +5934,7 @@ int main(int argc, char *argv[])
             exit(0);
         case 'p':
             if(! optarg)  {
-                printf("An argument required for -t!\n");
+                printf("An argument required for -p!\n");
                 usage(argv[0]);
                 exit(-1);
             }
@@ -5954,6 +5957,14 @@ int main(int argc, char *argv[])
         case 'r':
             cfg.raw = 1;
             break;
+        case 'o':
+            if(! optarg)  {
+                printf("An argument required for -o!\n");
+                usage(argv[0]);
+                exit(-1);
+            }
+            cfg.ocoding = optarg;
+            break;
         case 'v':
             version();
             exit(0);
@@ -5972,6 +5983,7 @@ int main(int argc, char *argv[])
 
     if(tp_list)
         des_ctx_cfg(&cfg, tp_list);
+
     if(type_name)  {
         if(! cdma)  {
             for(i = 0; i < ARRAYSIZE(gsm_sms_type); i++)  {
@@ -5994,7 +6006,6 @@ int main(int argc, char *argv[])
             exit(-1);
         }
     }
-
 
     for(i = optind; i < argc; i++)  {
         if(! argv[i] || ! argv[i][0])

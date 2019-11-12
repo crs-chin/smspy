@@ -28,7 +28,7 @@
  #include "mswin32/mswin32.h"
 #else  /* ! MSWIN32 */
 
-static inline int xfprintf(FILE *stream, const char *format, ...)
+static inline int xfprintf(FILE *stream, const char *ocoding, const char *format, ...)
 {
     va_list ap;
     int res;

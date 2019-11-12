@@ -110,7 +110,7 @@ static int vasprintf(char **strp, const char *fmt, va_list _ap)
     return res;
 }
 
-int xfprintf(FILE *stream, const char *format, ...)
+int xfprintf(FILE *stream, const char *ocoding, const char *format, ...)
 {
     va_list ap;
     char *src = NULL;
@@ -124,21 +124,16 @@ int xfprintf(FILE *stream, const char *format, ...)
         if((res = vasprintf(&src, format, ap)) < 0)
             break;
 
-        if(! (dest = (wchar_t *)convert_encoding(src, -1, XLOCALE, "UTF-8")))
-            break;
+        if(! ocoding)
+            ocoding = XLOCALE;
 
-        /* dest_sz = (res + 1) * sizeof(wchar_t); */
-        /* if(! (dest = (wchar_t *)malloc(dest_sz))) { */
-        /*     res = -1; */
-        /*     break; */
-        /* } */
-
-        /* if((res = MultiByteToWideChar(CP_ACP, 0, src, -1, dest, res + 1)) < 0) { */
-        /*     res = -1; */
-        /*     break; */
-        /* } */
-
-        res = fprintf(stream, "%s",  dest);
+        if(strcasecmp(ocoding, "UTF-8")) {
+            if(! (dest = (wchar_t *)convert_encoding(src, -1, ocoding, "UTF-8")))
+                break;
+            res = fprintf(stream, "%s",  dest);
+        } else {
+            res = fprintf(stream, "%s",  src);
+        }
     }while(0);
     va_end(ap);
 
